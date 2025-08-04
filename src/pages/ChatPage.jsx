@@ -41,6 +41,8 @@ const ChatPage = () => {
 
   useEffect(() => {
     socket.on('incoming-call', ({ from, offer, callType }) => {
+      console.log(`📞 Incoming call from ${from} ${offer} (${callType})`);
+      
       setCallState({
         isReceivingCall: true,
         from,
@@ -54,7 +56,19 @@ const ChatPage = () => {
     });
 
     socket.on('call-accepted', ({ answer }) => {
-      if (callState.peer) {
+      if(!answer){
+        resetCallState();
+        if (callState.stream) {
+    callState.stream.getTracks().forEach((track) => {
+      try {
+        track.stop();
+      } catch (err) {
+        console.warn('Error stopping track:', err);
+      }
+    });
+  }
+      }
+      if (answer && callState.peer) {
         callState.peer.signal(answer);
       }
     });
@@ -85,6 +99,7 @@ const ChatPage = () => {
       const peer = new Peer({ initiator: false, trickle: false, stream });
 
       peer.on('signal', (answer) => {
+        console.log('Sending answer:', answer);
         socket.emit('answer-call', {
           to: callState.from,
           answer,
@@ -107,17 +122,31 @@ const ChatPage = () => {
       }));
     } catch (err) {
       alert('Unable to access camera/mic');
+        socket.emit('answer-call', {
+        to: callState.from,
+        answer: null, // or use a flag like { rejected: true }
+      });
+
       console.error(err);
       resetCallState();
+
     }
   };
 
   const handleReject = () => {
-    if (callState.stream) {
-      callState.stream.getTracks().forEach((track) => track.stop());
-    }
-    resetCallState(); // 👈 Clean everything
-  };
+  if (callState.stream) {
+    callState.stream.getTracks().forEach((track) => track.stop());
+  }
+
+  // Emit rejection to backend
+  socket.emit('answer-call', {
+    to: callState.from,
+    answer: null, // or use a flag like { rejected: true }
+  });
+
+  resetCallState();
+};
+
 
   if (!user) return null;
 

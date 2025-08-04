@@ -29,6 +29,8 @@ const ChatWindow = () => {
   }
 
   const handleCall = async (type = 'video') => {
+    console.log(type);
+    
     try {
       const videoEnabled = type === 'video';
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -49,7 +51,7 @@ const ChatWindow = () => {
         socket.emit('call-user', {
           to: selectedUser[0],
           offer,
-          type, // required: this is call type (audio/video), NOT SDP type!
+          callType:type, // required: this is call type (audio/video), NOT SDP type!
         });
       });
 
