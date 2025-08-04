@@ -31,21 +31,13 @@ const ChatWindow = () => {
   const handleCall = async (type = 'video') => {
     try {
       const videoEnabled = type === 'video';
-      const audioEnabled = true;
-
       const stream = await navigator.mediaDevices.getUserMedia({
         video: videoEnabled,
-        audio: audioEnabled,
+        audio: true,
       });
 
-      setVideoPermissionGranted(stream.getVideoTracks().length > 0);
-      setAudioPermissionGranted(stream.getAudioTracks().length > 0);
-
-      const localVideo = document.getElementById('localVideo');
-      if (localVideo) {
-        localVideo.srcObject = stream;
-        localVideo.muted = true;
-      }
+      setVideoPermissionGranted(videoEnabled);
+      setAudioPermissionGranted(true);
 
       const peer = new Peer({
         initiator: true,
@@ -56,8 +48,8 @@ const ChatWindow = () => {
       peer.on('signal', (offer) => {
         socket.emit('call-user', {
           to: selectedUser[0],
-          offer: offer, // Include type for receiver
-          callType: type,
+          offer,
+          type, // required: this is call type (audio/video), NOT SDP type!
         });
       });
 
@@ -70,21 +62,37 @@ const ChatWindow = () => {
 
       peer.on('error', (err) => {
         console.error('Peer error:', err);
-        stream.getTracks().forEach(track => track.stop());
-        setCallState(prev => ({ ...prev, isCalling: false, isInCall: false }));
+        stream.getTracks().forEach((track) => track.stop());
+        setCallState((prev) => ({
+          ...prev,
+          isCalling: false,
+          isInCall: false,
+        }));
       });
 
+      // Save state
       setCallState({
         isCalling: true,
         isInCall: true,
         callType: type,
         peer,
         stream,
+        from: null,
+        offer: null,
+        isReceivingCall: false,
       });
 
+      // Attach stream after UI renders
+      setTimeout(() => {
+        const localVideo = document.getElementById('localVideo');
+        if (localVideo) {
+          localVideo.srcObject = stream;
+          localVideo.muted = true;
+        }
+      }, 0);
     } catch (err) {
       console.error('Media access error:', err);
-      alert('Please allow access to microphone and/or camera.');
+      alert('Camera or microphone access was blocked or failed.');
     }
   };
 

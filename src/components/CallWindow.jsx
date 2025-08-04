@@ -1,21 +1,21 @@
 import React, { useEffect, useRef } from 'react';
 import { useCall } from '../context/CallContext';
+// import { useCall } from '../context/CallContext';
 
 const CallWindow = () => {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  const { callState, setCallState } = useCall();
-  const { stream, peer } = callState;
+  const { callState, resetCallState } = useCall();
+  const { stream, peer } = callState || {};
 
   useEffect(() => {
-    // Attach local stream
+    // Show local stream
     if (localVideoRef.current && stream) {
       localVideoRef.current.srcObject = stream;
     }
 
-    // Attach remote stream (peer.on('stream'))
     const handleRemoteStream = (remoteStream) => {
-      if (remoteVideoRef.current) {
+      if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
         remoteVideoRef.current.srcObject = remoteStream;
       }
     };
@@ -24,28 +24,42 @@ const CallWindow = () => {
       peer.on('stream', handleRemoteStream);
     }
 
+    // Cleanup
     return () => {
-      if (peer) peer.removeListener('stream', handleRemoteStream);
+      if (peer) {
+        peer.removeListener('stream', handleRemoteStream);
+      }
     };
   }, [peer, stream]);
 
-  const handleEndCall = () => {
-    if (peer) peer.destroy();
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-    }
 
-    setCallState({
-      isCalling: false,
-      isReceivingCall: false,
-      isInCall: false,
-      callType: null,
-      peer: null,
-      stream: null,
-      from: null,
-      offer: null,
+const handleEndCall = () => {
+
+
+  // Stop all local media tracks
+  if (stream) {
+    stream.getTracks().forEach((track) => {
+      try {
+        track.stop();
+      } catch (err) {
+        console.warn('Error stopping track:', err);
+      }
     });
-  };
+  }
+
+  // Destroy the peer connection
+  if (peer) {
+    try {
+      peer.destroy();
+    } catch (err) {
+      console.error('Error destroying peer:', err);
+    }
+  }
+
+  // Reset call state
+  resetCallState();
+};
+
 
   return (
     <div className="fixed inset-0 z-50 flex justify-center items-center bg-black bg-opacity-90">
@@ -54,13 +68,15 @@ const CallWindow = () => {
           ref={localVideoRef}
           autoPlay
           muted
+          playsInline
           className="w-1/2 h-full object-cover border-r border-gray-800"
-        ></video>
+        />
         <video
           ref={remoteVideoRef}
           autoPlay
+          playsInline
           className="w-1/2 h-full object-cover"
-        ></video>
+        />
       </div>
       <button
         onClick={handleEndCall}
@@ -73,4 +89,3 @@ const CallWindow = () => {
 };
 
 export default CallWindow;
-    
