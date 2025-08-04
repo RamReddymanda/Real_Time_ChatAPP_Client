@@ -48,14 +48,15 @@ const ChatPage = () => {
 
 
 useEffect(() => {
-  socket.on('incoming-call', ({ from, offer }) => {
-    setCallState({
-      isReceivingCall: true,
-      from,
-      offer,
-      callType: offer.type,
+  socket.on('incoming-call', ({ from, offer, callType }) => {
+      setCallState({
+        isReceivingCall: true,
+        from,
+        offer,        // valid SDP offer
+        callType,     // custom metadata (video/audio)
+      });
     });
-  });
+
 
   socket.on('call-accepted', ({ answer }) => {
     if (callState.peer) {

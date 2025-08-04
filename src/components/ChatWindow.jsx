@@ -56,7 +56,8 @@ const ChatWindow = () => {
       peer.on('signal', (offer) => {
         socket.emit('call-user', {
           to: selectedUser[0],
-          offer: { ...offer, type }, // Include type for receiver
+          offer: offer, // Include type for receiver
+          callType: type,
         });
       });
 
