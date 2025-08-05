@@ -9,15 +9,17 @@ import CallModal from '../components/CallModal';
 import Peer from 'simple-peer';
 
 const ChatPage = () => {
-  const { user } = useAuth();
+  const { user,token } = useAuth();
   const navigate = useNavigate();
   const { callState, setCallState, resetCallState } = useCall(); // 👈 Add resetCallState in context
 
   useEffect(() => {
-    if (!user) {
-      navigate('/');
-      return;
-    }
+    // console.log(user,token)
+    // if (!user) {
+    //   navigate('/login');
+    //   return;
+    // }
+    // // if()
 
     socket.auth = { userId: user._id };
     if (!socket.connected) socket.connect();
@@ -41,8 +43,8 @@ const ChatPage = () => {
 
   useEffect(() => {
     socket.on('incoming-call', ({ from, offer, callType }) => {
-      console.log(`📞 Incoming call from ${from} ${offer} (${callType})`);
-      
+      // console.log(`📞 Incoming call from ${from} ${offer} (${callType})`);
+      console.log("recieved offer:", offer);
       setCallState({
         isReceivingCall: true,
         from,
@@ -74,6 +76,7 @@ const ChatPage = () => {
     });
 
     socket.on('ice-candidate', ({ candidate }) => {
+      console.log('Received ICE candidate:', candidate);
       if (callState.peer) {
         callState.peer.signal(candidate);
       }
@@ -85,53 +88,84 @@ const ChatPage = () => {
       socket.off('ice-candidate');
     };
   }, [callState.peer, setCallState]);
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
+  ]
+};
 
   const handleAccept = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: callState.callType === 'video',
-        audio: true,
-      });
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: callState.callType === 'video',
+      audio: true,
+    });
 
-      const localVideo = document.getElementById('localVideo');
-      if (localVideo) localVideo.srcObject = stream;
+    const localVideo = document.getElementById('localVideo');
+    if (localVideo) localVideo.srcObject = stream;
 
-      const peer = new Peer({ initiator: false, trickle: false, stream });
+    const peer = new Peer({
+      initiator: false,
+      trickle: true,
+      stream,
+      config: ICE_SERVERS,
+    });
+    // peer.on('stream', (remoteStream) => {
+    // if (remoteVideoRef.current) {
+    //   remoteVideoRef.current.srcObject = remoteStream;
+    //   console.log("✅ Remote video element found and stream attached.");
+    // } else {
+    //   console.warn("❌ remoteVideoRef.current is null when stream received");
+    // }
 
-      peer.on('signal', (answer) => {
-        console.log('Sending answer:', answer);
+    // });
+    peer.on('signal', (data) => {
+      if (data.type === 'answer') {
         socket.emit('answer-call', {
           to: callState.from,
-          answer,
+          answer: data,
         });
-      });
+      } else {
+        socket.emit('ice-candidate', {
+          to: callState.from,
+          candidate: data,
+        });
+      }
+    });
 
-      peer.on('stream', (remoteStream) => {
-        const remoteVideo = document.getElementById('remoteVideo');
-        if (remoteVideo) remoteVideo.srcObject = remoteStream;
-      });
+    peer.on('stream', (remoteStream) => {
+      const remoteVideo = document.getElementById('remoteVideo');
+      if (remoteVideo) {
+        remoteVideo.srcObject = remoteStream;
+      }
+    });
 
-      peer.signal(callState.offer);
+    // Removed duplicate ice-candidate listener from here ✅
+    setTimeout(() => {
+  peer.signal(callState.offer);
+}, 100);
 
-      setCallState((prev) => ({
-        ...prev,
-        isReceivingCall: false,
-        isInCall: true, // ✅ This renders CallWindow
-        peer,
-        stream,
-      }));
-    } catch (err) {
-      alert('Unable to access camera/mic');
-        socket.emit('answer-call', {
-        to: callState.from,
-        answer: null, // or use a flag like { rejected: true }
-      });
+    // peer.signal(callState.offer);
 
-      console.error(err);
-      resetCallState();
-
-    }
-  };
+    setCallState((prev) => ({
+      ...prev,
+      isReceivingCall: false,
+      isInCall: true,
+      peer,
+      stream,
+    }));
+  } catch (err) {
+    alert('Unable to access camera/mic');
+    socket.emit('answer-call', { to: callState.from, answer: null });
+    console.error(err);
+    resetCallState();
+  }
+};
 
   const handleReject = () => {
   if (callState.stream) {

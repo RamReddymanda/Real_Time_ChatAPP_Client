@@ -1,70 +1,85 @@
 import React, { useEffect, useRef } from 'react';
 import { useCall } from '../context/CallContext';
-// import { useCall } from '../context/CallContext';
-
+import socket from '../utils/socket';
 const CallWindow = () => {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const { callState, resetCallState } = useCall();
-  const { stream, peer } = callState || {};
+  const { stream, peer,from } = callState || {};
 
   useEffect(() => {
-    // Show local stream
     if (localVideoRef.current && stream) {
       localVideoRef.current.srcObject = stream;
     }
 
     const handleRemoteStream = (remoteStream) => {
-      if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
+      console.log('✅ Remote stream received:', remoteStream);
+      if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
       }
     };
+    
+    peer.on('stream', (remoteStream) => {
+      console.log('📺 Remote stream received');
+      const remoteVideo = document.getElementById('remoteVideo');
+      if (remoteVideo) {
+        remoteVideo.srcObject = remoteStream;
+      }
+    });
+    // if (peer) {
+    //   console.log('📡 Binding remote stream handler');
+    //   peer.on('stream', handleRemoteStream);
+    // }
 
-    if (peer) {
-      peer.on('stream', handleRemoteStream);
-    }
-
-    // Cleanup
     return () => {
       if (peer) {
+        console.log('🧹 Removing remote stream handler');
         peer.removeListener('stream', handleRemoteStream);
       }
     };
   }, [peer, stream]);
 
-
-const handleEndCall = () => {
-
-
-  // Stop all local media tracks
-  if (stream) {
-    stream.getTracks().forEach((track) => {
-      try {
-        track.stop();
-      } catch (err) {
-        console.warn('Error stopping track:', err);
-      }
-    });
-  }
-
-  // Destroy the peer connection
-  if (peer) {
-    try {
-      peer.destroy();
-    } catch (err) {
-      console.error('Error destroying peer:', err);
+  const handleEndCall = () => {
+    // Notify the other user to end the call
+    if (from) {
+      socket.emit('end-call', { to: from });
     }
-  }
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (err) {
+          console.warn('Error stopping track:', err);
+        }
+      });
+    }
 
-  // Reset call state
-  resetCallState();
-};
+    if (peer) {
+      try {
+        peer.destroy();
+      } catch (err) {
+        console.error('Error destroying peer:', err);
+      }
+    }
 
+    resetCallState();
+  };
+ useEffect(() => {
+    // Handle receiving end-call signal
+    socket.on('call-ended', () => {
+      console.log('📴 Call ended by remote');
+      handleEndCall();
+    });
 
+    return () => {
+      socket.off('call-ended');
+    };
+  }, []);
   return (
     <div className="fixed inset-0 z-50 flex justify-center items-center bg-black bg-opacity-90">
       <div className="flex w-full h-full">
         <video
+          id="localVideo"
           ref={localVideoRef}
           autoPlay
           muted
@@ -72,6 +87,7 @@ const handleEndCall = () => {
           className="w-1/2 h-full object-cover border-r border-gray-800"
         />
         <video
+          id="remoteVideo"
           ref={remoteVideoRef}
           autoPlay
           playsInline

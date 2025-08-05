@@ -27,76 +27,72 @@ const ChatWindow = () => {
       </div>
     );
   }
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    {
+      urls: 'turn:openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayproject'
+    }
+  ]
+};
 
-  const handleCall = async (type = 'video') => {
-    console.log(type);
-    
-    try {
-      const videoEnabled = type === 'video';
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: videoEnabled,
-        audio: true,
-      });
+// --- HANDLE CALL IN CHATWINDOW (Caller Side) ---
+const handleCall = async (type = 'video') => {
+  try {
+    const videoEnabled = type === 'video';
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: videoEnabled,
+      audio: true,
+    });
 
-      setVideoPermissionGranted(videoEnabled);
-      setAudioPermissionGranted(true);
+    const peer = new Peer({
+      initiator: true,
+      trickle: true,
+      stream,
+      config: ICE_SERVERS,
+    });
 
-      const peer = new Peer({
-        initiator: true,
-        trickle: false,
-        stream,
-      });
-
-      peer.on('signal', (offer) => {
+    peer.on('signal', (data) => {
+      if (data.type === 'offer') {
         socket.emit('call-user', {
           to: selectedUser[0],
-          offer,
-          callType:type, // required: this is call type (audio/video), NOT SDP type!
+          offer: data,
+          callType: type,
         });
-      });
+      } else {
+        socket.emit('ice-candidate', {
+          to: selectedUser[0],
+          candidate: data,
+        });
+      }
+    });
 
-      peer.on('stream', (remoteStream) => {
-        const remoteVideo = document.getElementById('remoteVideo');
-        if (remoteVideo) {
-          remoteVideo.srcObject = remoteStream;
-        }
-      });
 
-      peer.on('error', (err) => {
-        console.error('Peer error:', err);
-        stream.getTracks().forEach((track) => track.stop());
-        setCallState((prev) => ({
-          ...prev,
-          isCalling: false,
-          isInCall: false,
-        }));
-      });
+    setCallState({
+      isCalling: true,
+      isInCall: true,
+      callType: type,
+      peer,
+      stream,
+      from: null,
+      offer: null,
+      isReceivingCall: false,
+    });
 
-      // Save state
-      setCallState({
-        isCalling: true,
-        isInCall: true,
-        callType: type,
-        peer,
-        stream,
-        from: null,
-        offer: null,
-        isReceivingCall: false,
-      });
-
-      // Attach stream after UI renders
-      setTimeout(() => {
-        const localVideo = document.getElementById('localVideo');
-        if (localVideo) {
-          localVideo.srcObject = stream;
-          localVideo.muted = true;
-        }
-      }, 0);
-    } catch (err) {
-      console.error('Media access error:', err);
-      alert('Camera or microphone access was blocked or failed.');
-    }
-  };
+    setTimeout(() => {
+      const localVideo = document.getElementById('localVideo');
+      if (localVideo) {
+        localVideo.srcObject = stream;
+        localVideo.muted = true;
+      }
+    }, 0);
+  } catch (err) {
+    alert('Camera or microphone access was blocked or failed.');
+    console.error(err);
+  }
+};
 
   return (
     <div className="flex flex-col flex-1 bg-white">

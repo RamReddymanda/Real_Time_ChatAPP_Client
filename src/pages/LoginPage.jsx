@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
+import React, { use, useState,useEffect } from 'react';
 import { sendOtp } from '../services/auth';
 import { useNavigate } from 'react-router-dom';
-
+import { useAuth } from '../context/AuthContext';
 const LoginPage = () => {
+  const { user,checkAuth } = useAuth(); 
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  // useEffect(() => {
+  //   if (user) {
+  //     if(checkAuth()){
+  //     navigate('/chat');
+  //   }
+  // }
+  // },[])
 
   const handleSubmit = async (e) => {
     e.preventDefault();

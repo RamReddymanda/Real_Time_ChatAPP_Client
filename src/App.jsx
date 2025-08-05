@@ -7,18 +7,19 @@ import PrivateRoute from './routes/PrivateRoute';
 import { AuthProvider } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
 import { CallProvider } from './context/CallContext';
-
+import AuthInitializer from './context/AuthInitializer';
 const App = () => {
   return (
     <Router>
       <AuthProvider>
+        {/* Wrapping ChatProvider and CallProvider around the Routes */}
         <ChatProvider>
           <CallProvider>
           <Routes>
-            <Route path="/" element={<LoginPage />} />
+            <Route path="/login" element={<LoginPage />} />
             <Route path="/otp" element={<OtpPage />} />
             <Route
-              path="/chat"
+              path="/"
               element={
                 <PrivateRoute>
                   <ChatPage />
@@ -28,6 +29,7 @@ const App = () => {
           </Routes>
           </CallProvider>
         </ChatProvider>
+
       </AuthProvider>
     </Router>
   );

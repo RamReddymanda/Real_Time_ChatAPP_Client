@@ -17,10 +17,17 @@ const OtpPage = () => {
     try {
       console.log(`Verifying OTP for phone: ${phone} with OTP: ${otp}`);
       
-      const { data } = await verifyOtp(phone, otp);
+      const res = await verifyOtp(phone, otp);
+      console.log(res)
+      const {data}=res
+      if (!data || !data.user || !data.token) {
+        throw new Error('Invalid response from server');
+      }
+      else{
       login(data);
       console.log('OTP verified successfully:', data);
-      navigate('/chat');
+      navigate('/');
+      }
     } catch (err) {
       console.error('OTP verification failed:', err);
       setError('Invalid OTP');
