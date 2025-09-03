@@ -115,9 +115,9 @@ const ICE_SERVERS = {
 
   const handleAccept = async () => {
   try {
-    const stream = await navigator.mediaDevices.getDisplayMedia({
+    const stream = await navigator.mediaDevices.getUserMedia({
       video: callState.callType === 'video',
-      audio: false,
+      audio: true,
     });
 
     const localVideo = document.getElementById('localVideo');
