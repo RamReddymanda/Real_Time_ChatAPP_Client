@@ -27,13 +27,26 @@ const ChatWindow = () => {
       </div>
     );
   }
+// const ICE_SERVERS = {
+//   iceServers: [
+//     { urls: 'stun:stun.l.google.com:19302' },
+//     {
+//       urls: 'turn:openrelay.metered.ca:80',
+//       username: 'openrelayproject',
+//       credential: 'openrelayproject'
+//     }
+//   ]
+// };
 const ICE_SERVERS = {
   iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun.l.google.com:19302' }, // STUN
     {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
+      urls: [
+        'turn:relay1.expressturn.com:3478',
+        'turns:relay1.expressturn.com:5349'
+      ],
+      username: 'expressturn',
+      credential: 'expressturn'
     }
   ]
 };
@@ -52,6 +65,7 @@ const handleCall = async (type = 'video') => {
       trickle: true,
       stream,
       config: ICE_SERVERS,
+      iceTransportPolicy: 'relay' 
     });
 
     peer.on('signal', (data) => {
