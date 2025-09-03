@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import socket from '../utils/socket';
 import { useChat } from '../context/ChatContext';
+import UserItem from './UserItem';
 import { useAuth } from '../context/AuthContext';
 import { fetchRecentChats } from '../services/auth';
-import UserItem from './UserItem';
-
+import { useNavigate } from 'react-router-dom';
 const Sidebar = () => {
-  const { users, setUsers, setSelectedUser, messages } = useChat();
-  const { user } = useAuth();
+  const [users, setUsers] = useState([]);
   const [recentChats, setRecentChats] = useState([]);
-  const [view, setView] = useState('recent');
-  const [search, setSearch] = useState('');
-
-  // ✅ Listen for online users
+  const [view, setView] = useState('recent'); // 'recent' or 'online'
+  const { setSelectedUser, messages } = useChat();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  // Fetch online users
   useEffect(() => {
     if (!user) return;
     socket.on('online-users', (onlineUsers) => {
@@ -22,95 +22,104 @@ const Sidebar = () => {
     return () => {
       socket.off('online-users');
     };
-  }, [user, setUsers]);
+  }, [user]);
 
-  // ✅ Fetch initial recent chats only once
+  // Fetch recent chats (initial load)
   useEffect(() => {
     if (user) {
       fetchRecentChats(user.phone)
-        .then((res) => setRecentChats(res.data || []))
+        .then((res) => {
+          // Sort recent chats by last message timestamp
+          const sorted = res.data.sort((a, b) => new Date(b.lastMessageTime) - new Date(a.lastMessageTime));
+          setRecentChats(sorted);
+        })
         .catch((err) => console.error('Error fetching recent chats:', err));
     }
   }, [user]);
 
-  // ✅ Update recentChats order when a new message is sent/received
+  // Update recent chat order when new message arrives
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (!messages || messages.length === 0) return;
 
-    const lastMessage = messages[messages.length - 1];
-    const partner =
-      lastMessage.sender === user.phone ? lastMessage.receiver : lastMessage.sender;
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg) return;
 
     setRecentChats((prev) => {
-      const existing = prev.find((c) => c.phone === partner);
-      const filtered = prev.filter((c) => c.phone !== partner);
+      const updated = prev.filter((chat) => chat.phone !== lastMsg.sender && chat.phone !== lastMsg.receiver);
 
-      // Add partner to top (if new, just add it)
-      return [{ phone: partner }, ...filtered];
+      // Find the other party (not the current user)
+      const otherUser = lastMsg.sender === user.phone ? lastMsg.receiver : lastMsg.sender;
+
+      updated.unshift({ phone: otherUser, lastMessageTime: lastMsg.timestamp });
+      return updated;
     });
-  }, [messages, user.phone]);
+  }, [messages, user]);
 
-  const handleClick = (username) => setSelectedUser(username);
-
-  const filteredUsers =
-    view === 'recent'
-      ? recentChats.filter((chat) => chat.phone.includes(search))
-      : users.filter((u) => u[0].includes(search));
+  const handleClick = (username) => {
+    setSelectedUser(username);
+  };
 
   return (
-    <div className="flex flex-col w-full h-full">
-      {/* Header */}
-      <div className="bg-blue-600 text-white text-center py-4 font-bold text-lg">
-        Welcome {user ? user.phone : 'Guest'}
+    <div className="h-full w-64 bg-gray-100 border-r flex flex-col">
+      {/* Sidebar Header (Match ChatWindow Header) */}
+      <div className="bg-gradient-to-r from-blue-500 to-violet-600 text-white text-center font-bold text-lg flex items-center justify-center h-16 shadow-md">
+        {user ? `Welcome ${user.phone}` : "Guest"}
+        <button
+      onClick={() => navigate('/logout')}
+      className="text-red-600 hover:underline"
+    >
+      Logout
+    </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex justify-around border-b bg-gray-50">
+      {/* Navigation Tabs */}
+      <div className="flex justify-around border-b p-2 bg-white">
         <button
-          className={`flex-1 py-2 ${view === 'recent' ? 'bg-blue-100 font-semibold' : ''}`}
-          onClick={() => setView('recent')}
+          className={`px-3 py-1 rounded ${view === "recent" ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+          onClick={() => setView("recent")}
         >
           Recent
         </button>
         <button
-          className={`flex-1 py-2 ${view === 'online' ? 'bg-green-100 font-semibold' : ''}`}
-          onClick={() => setView('online')}
+          className={`px-3 py-1 rounded ${view === "online" ? "bg-green-500 text-white" : "bg-gray-200"}`}
+          onClick={() => setView("online")}
         >
           Online
         </button>
       </div>
 
-      {/* Search */}
-      <div className="p-2">
-        <input
-          type="text"
-          placeholder="Search..."
-          className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      {/* Chat Lists */}
+      <div className="p-3 overflow-y-auto">
+        {view === "recent" && (
+          <>
+            <h3 className="text-sm font-semibold mb-2 text-gray-600">
+              Recent Chats
+            </h3>
+            {recentChats.length === 0 && <p className="text-gray-500">No recent chats</p>}
+            {recentChats.map((chat) => (
+              <UserItem
+                key={chat.phone}
+                username={chat.phone}
+                onClick={() => handleClick([chat.phone, "recent"])}
+              />
+            ))}
+          </>
+        )}
 
-      {/* User List */}
-      <div className="flex-1 overflow-y-auto p-2">
-        {filteredUsers.length === 0 ? (
-          <p className="text-gray-500 text-center mt-4">No users found</p>
-        ) : (
-          filteredUsers.map((item) =>
-            view === 'recent' ? (
+        {view === "online" && (
+          <>
+            <h3 className="text-sm font-semibold mb-2 text-gray-600">
+              Online Users
+            </h3>
+            {users.length === 0 && <p className="text-gray-500">No users online</p>}
+            {users.map((u) => (
               <UserItem
-                key={item.phone}
-                username={item.phone}
-                onClick={() => handleClick([item.phone, 'recent'])}
+                key={u[1]}
+                username={u[0]}
+                onClick={() => handleClick(u)}
               />
-            ) : (
-              <UserItem
-                key={item[1]}
-                username={item[0]}
-                onClick={() => handleClick(item)}
-              />
-            )
-          )
+            ))}
+          </>
         )}
       </div>
     </div>

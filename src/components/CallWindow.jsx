@@ -1,11 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { useCall } from '../context/CallContext';
 import socket from '../utils/socket';
+import { PhoneOff } from 'lucide-react';
+
 const CallWindow = () => {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const { callState, resetCallState } = useCall();
-  const { stream, peer,from } = callState || {};
+  const { stream, peer, from } = callState || {};
 
   useEffect(() => {
     if (localVideoRef.current && stream) {
@@ -13,34 +15,21 @@ const CallWindow = () => {
     }
 
     const handleRemoteStream = (remoteStream) => {
-      console.log('✅ Remote stream received:', remoteStream);
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStream;
       }
     };
-    
-    peer.on('stream', (remoteStream) => {
-      console.log('📺 Remote stream received');
-      const remoteVideo = document.getElementById('remoteVideo');
-      if (remoteVideo) {
-        remoteVideo.srcObject = remoteStream;
-      }
-    });
-    // if (peer) {
-    //   console.log('📡 Binding remote stream handler');
-    //   peer.on('stream', handleRemoteStream);
-    // }
+
+    if (peer) {
+      peer.on('stream', handleRemoteStream);
+    }
 
     return () => {
-      if (peer) {
-        console.log('🧹 Removing remote stream handler');
-        peer.removeListener('stream', handleRemoteStream);
-      }
+      if (peer) peer.removeListener('stream', handleRemoteStream);
     };
   }, [peer, stream]);
 
   const handleEndCall = () => {
-    // Notify the other user to end the call
     if (from) {
       socket.emit('end-call', { to: from });
     }
@@ -53,7 +42,6 @@ const CallWindow = () => {
         }
       });
     }
-
     if (peer) {
       try {
         peer.destroy();
@@ -61,45 +49,46 @@ const CallWindow = () => {
         console.error('Error destroying peer:', err);
       }
     }
-
     resetCallState();
   };
- useEffect(() => {
-    // Handle receiving end-call signal
+
+  useEffect(() => {
     socket.on('call-ended', () => {
-      console.log('📴 Call ended by remote');
       handleEndCall();
     });
-
-    return () => {
-      socket.off('call-ended');
-    };
+    return () => socket.off('call-ended');
   }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex justify-center items-center bg-black bg-opacity-90">
-      <div className="flex w-full h-full">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-black text-white">
+      {/* Video Container */}
+      <div className="relative flex w-full h-full">
         <video
           id="localVideo"
           ref={localVideoRef}
           autoPlay
           muted
           playsInline
-          className="w-1/2 h-full object-cover border-r border-gray-800"
+          className="absolute top-4 left-4 w-40 h-32 rounded-xl shadow-lg border-2 border-white object-cover z-20"
         />
         <video
           id="remoteVideo"
           ref={remoteVideoRef}
           autoPlay
           playsInline
-          className="w-1/2 h-full object-cover"
+          className="w-full h-full object-cover rounded-none"
         />
       </div>
-      <button
-        onClick={handleEndCall}
-        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-2 rounded-full shadow-lg transition"
-      >
-        End Call
-      </button>
+
+      {/* Controls */}
+      <div className="absolute bottom-10 flex justify-center gap-6">
+        <button
+          onClick={handleEndCall}
+          className="bg-red-600 hover:bg-red-700 text-white flex items-center justify-center w-16 h-16 rounded-full shadow-xl transition-transform transform hover:scale-110"
+        >
+          <PhoneOff size={28} />
+        </button>
+      </div>
     </div>
   );
 };

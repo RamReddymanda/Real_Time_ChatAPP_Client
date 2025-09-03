@@ -45,8 +45,11 @@ export const AuthProvider = ({ children }) => {
     if (user) {
       
       localStorage.setItem('user', JSON.stringify(user));
+      // localStorage.removeItem('tn-identity-key');
     } else {
       localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('tn-identity-key');
     }
   }, [user]);
 
@@ -68,11 +71,14 @@ export const AuthProvider = ({ children }) => {
     console.log(token)
     // navigate('/');
   };
-
+  
   const logout = () => {
     setUser(null);
     setToken(null);
-    localStorage.remove('privateKey');
+    //  localStorage.removeItem('user');
+    //   localStorage.removeItem('token');
+    console.log("logout called")
+    localStorage.removeItem('tn-identity-key');
     navigate('/login');
   };
 
