@@ -1,37 +1,50 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import rollupNodePolyFill from 'rollup-plugin-node-polyfills';
-import {nodePolyfills} from 'vite-plugin-node-polyfills';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import inject from '@rollup/plugin-inject';
 
 export default defineConfig({
-  erver: {
+  server: {
     host: '0.0.0.0',
     port: 5173
   },
   plugins: [
     react(),
     tailwindcss(),
-    nodePolyfills({ protocolImports: true }), // ✅ Add this
+    nodePolyfills({
+      protocolImports: true, // ✅ Enables `node:` imports in the browser
+    }),
   ],
   define: {
-    global: 'globalThis', // ✅ Needed for browser-based Node shims
+    global: 'globalThis', // ✅ Makes Node globals work in browser
   },
   resolve: {
     alias: {
-      stream: 'rollup-plugin-node-polyfills/polyfills/stream',
-      events: 'rollup-plugin-node-polyfills/polyfills/events',
-      util: 'rollup-plugin-node-polyfills/polyfills/util',
-      buffer: 'rollup-plugin-node-polyfills/polyfills/buffer-es6',
-      process: 'rollup-plugin-node-polyfills/polyfills/process-es6',
+      stream: 'stream-browserify',
+      events: 'events/',
+      util: 'util/',
+      buffer: 'buffer/',
+      process: 'process/browser',
     },
   },
   optimizeDeps: {
-    include: ['buffer', 'process', 'events', 'util'],
+    include: [
+      'buffer',
+      'process',
+      'events',
+      'util',
+      'stream',
+    ],
   },
   build: {
     rollupOptions: {
-      plugins: [rollupNodePolyFill()],
+      plugins: [
+        inject({
+          Buffer: ['buffer', 'Buffer'],
+          process: 'process/browser',
+        }),
+      ],
     },
   },
 });

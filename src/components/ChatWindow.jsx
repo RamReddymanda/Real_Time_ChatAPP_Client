@@ -1,134 +1,59 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useChat } from '../context/ChatContext';
-import { useCall } from '../context/CallContext';
-import MessageList from './MessageList';
-import MessageInput from './MessageInput';
-import CallWindow from './CallWindow';
-import Peer from 'simple-peer';
-import socket from '../utils/socket';
+import React from "react";
+import { useChat } from "../context/ChatContext";
+import { useCall } from "../context/CallContext";
+import MessageList from "./MessageList";
+import MessageInput from "./MessageInput";
+import CallWindow from "./CallWindow";
 
 const ChatWindow = () => {
-  const { selectedUser } = useChat();
-  const { callState, setCallState } = useCall();
-  const chatBoxRef = useRef();
-  const [videoPermissionGranted, setVideoPermissionGranted] = useState(false);
-  const [audioPermissionGranted, setAudioPermissionGranted] = useState(false);
-
-  useEffect(() => {
-    if (chatBoxRef.current) {
-      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
-    }
-  }, [callState, selectedUser]);
+  const { selectedUser, typing, users } = useChat();
+  const { callState } = useCall();
 
   if (!selectedUser || !selectedUser[0]) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-100">
-        <p>Select a user to start chatting</p>
+      <div className="flex-1 flex items-center justify-center bg-gray-100 text-gray-500 text-lg">
+        Select a user to start chatting
       </div>
     );
   }
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    }
-  ]
-};
-
-// --- HANDLE CALL IN CHATWINDOW (Caller Side) ---
-const handleCall = async (type = 'video') => {
-  try {
-    const videoEnabled = type === 'video';
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: videoEnabled,
-      audio: true,
-    });
-
-    const peer = new Peer({
-      initiator: true,
-      trickle: true,
-      stream,
-      config: ICE_SERVERS,
-    });
-
-    peer.on('signal', (data) => {
-      if (data.type === 'offer') {
-        socket.emit('call-user', {
-          to: selectedUser[0],
-          offer: data,
-          callType: type,
-        });
-      } else {
-        socket.emit('ice-candidate', {
-          to: selectedUser[0],
-          candidate: data,
-        });
-      }
-    });
-
-
-    setCallState({
-      isCalling: true,
-      isInCall: true,
-      callType: type,
-      peer,
-      stream,
-      from: null,
-      offer: null,
-      isReceivingCall: false,
-    });
-
-    setTimeout(() => {
-      const localVideo = document.getElementById('localVideo');
-      if (localVideo) {
-        localVideo.srcObject = stream;
-        localVideo.muted = true;
-      }
-    }, 0);
-  } catch (err) {
-    alert('Camera or microphone access was blocked or failed.');
-    console.error(err);
-  }
-};
 
   return (
-    <div className="flex flex-col flex-1 bg-white">
-      <div className="bg-gray-200 p-4 font-semibold border-b">
-        Chat with {selectedUser[0]}
+    <div className="flex flex-col flex-1 h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between bg-blue-600 text-white p-4">
+        <div className="flex items-center gap-3">
+          <span
+            className={`w-3 h-3 rounded-full ${
+              users.some((u) => u[0] === selectedUser[0])
+                ? "bg-green-400"
+                : "bg-gray-400"
+            }`}
+          ></span>
+          <span className="font-semibold">{selectedUser[0]}</span>
+          {typing.has(selectedUser[0]) && (
+            <span className="ml-3 text-sm italic">typing...</span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button className="bg-white text-blue-600 px-3 py-1 rounded hover:bg-gray-100">
+            📞
+          </button>
+          <button className="bg-white text-purple-600 px-3 py-1 rounded hover:bg-gray-100">
+            🎥
+          </button>
+        </div>
       </div>
 
-      <div className="flex gap-2 p-2">
-        <button
-          onClick={() => handleCall('audio')}
-          className="bg-blue-500 px-3 py-1 text-white rounded"
-          disabled={callState?.isCalling || callState?.isInCall}
-        >
-          📞 Audio Call
-        </button>
-        <button
-          onClick={() => handleCall('video')}
-          className="bg-purple-500 px-3 py-1 text-white rounded"
-          disabled={callState?.isCalling || callState?.isInCall}
-        >
-          🎥 Video Call
-        </button>
-      </div>
+      {/* Chat Messages */}
+      <MessageList />
 
-      <div
-        ref={chatBoxRef}
-        className="flex-1 overflow-y-auto p-4 space-y-2 bg-gray-50"
-      >
-        <MessageList />
-      </div>
-
-      <div className="p-4 border-t bg-white">
+      {/* Input */}
+      <div className="sticky bottom-0 bg-white p-2 border-t">
         <MessageInput />
       </div>
 
-      {(callState?.isCalling || callState?.isInCall) && <CallWindow />}
+      {/* Call Overlay */}
+      {callState?.isCalling || callState?.isInCall ? <CallWindow /> : null}
     </div>
   );
 };

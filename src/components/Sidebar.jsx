@@ -1,19 +1,18 @@
-// components/Sidebar.jsx
 import React, { useEffect, useState } from 'react';
 import socket from '../utils/socket';
 import { useChat } from '../context/ChatContext';
-import UserItem from './UserItem';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
 import { fetchRecentChats } from '../services/auth';
-const Sidebar = () => {
-  const [users, setUsers] = useState([]);
-  const [recentChats, setRecentChats] = useState([]);
-  const [view, setView] = useState('recent'); // 'recent' or 'online'
-  const { setSelectedUser,messages } = useChat();
-  const { user } = useAuth();
+import UserItem from './UserItem';
 
-  // Fetch online users
+const Sidebar = () => {
+  const { users, setUsers, setSelectedUser, messages } = useChat();
+  const { user } = useAuth();
+  const [recentChats, setRecentChats] = useState([]);
+  const [view, setView] = useState('recent');
+  const [search, setSearch] = useState('');
+
+  // ✅ Listen for online users
   useEffect(() => {
     if (!user) return;
     socket.on('online-users', (onlineUsers) => {
@@ -23,67 +22,97 @@ const Sidebar = () => {
     return () => {
       socket.off('online-users');
     };
-  }, [user]);
+  }, [user, setUsers]);
 
-  // Fetch recent chats
+  // ✅ Fetch initial recent chats only once
   useEffect(() => {
     if (user) {
       fetchRecentChats(user.phone)
-        .then((res) => setRecentChats(res.data))
+        .then((res) => setRecentChats(res.data || []))
         .catch((err) => console.error('Error fetching recent chats:', err));
     }
-  }, [messages]);
+  }, [user]);
 
-  const handleClick = (username) => {
-    setSelectedUser(username);
-  };
+  // ✅ Update recentChats order when a new message is sent/received
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    const lastMessage = messages[messages.length - 1];
+    const partner =
+      lastMessage.sender === user.phone ? lastMessage.receiver : lastMessage.sender;
+
+    setRecentChats((prev) => {
+      const existing = prev.find((c) => c.phone === partner);
+      const filtered = prev.filter((c) => c.phone !== partner);
+
+      // Add partner to top (if new, just add it)
+      return [{ phone: partner }, ...filtered];
+    });
+  }, [messages, user.phone]);
+
+  const handleClick = (username) => setSelectedUser(username);
+
+  const filteredUsers =
+    view === 'recent'
+      ? recentChats.filter((chat) => chat.phone.includes(search))
+      : users.filter((u) => u[0].includes(search));
 
   return (
-    <div className="h-screen w-64 bg-gray-100 border-r overflow-y-auto flex flex-col">
-             <div className="bg-white text-center py-2 border-t">
-      Welcome {user ? user.phone : 'Guest'}
-    </div>
-      <div className="flex justify-around border-b p-2 bg-white">
+    <div className="flex flex-col w-full h-full">
+      {/* Header */}
+      <div className="bg-blue-600 text-white text-center py-4 font-bold text-lg">
+        Welcome {user ? user.phone : 'Guest'}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex justify-around border-b bg-gray-50">
         <button
-          className={`px-3 py-1 rounded ${
-            view === 'recent' ? 'bg-blue-500 text-white' : 'bg-gray-200'
-          }`}
+          className={`flex-1 py-2 ${view === 'recent' ? 'bg-blue-100 font-semibold' : ''}`}
           onClick={() => setView('recent')}
         >
           Recent
         </button>
         <button
-          className={`px-3 py-1 rounded ${
-            view === 'online' ? 'bg-green-500 text-white' : 'bg-gray-200'
-          }`}
+          className={`flex-1 py-2 ${view === 'online' ? 'bg-green-100 font-semibold' : ''}`}
           onClick={() => setView('online')}
         >
           Online
         </button>
       </div>
 
+      {/* Search */}
       <div className="p-2">
-        {view === 'recent' && (
-          <>
-            <h3 className="text-lg font-semibold mb-2">Recent Chats</h3>
-            {recentChats.length === 0 && <p className="text-gray-500">No recent chats</p>}
-            {recentChats.map((chat) => (
-              <UserItem key={chat.phone} username={chat.phone} onClick={() => handleClick([chat.phone, 'recent'])} />
-            ))}
-          </>
-        )}
-
-        {view === 'online' && (
-          <>
-            <h3 className="text-lg font-semibold mb-2">Online Users</h3>
-            {users.length === 0 && <p className="text-gray-500">No users online</p>}
-            {users.map((u) => (
-              <UserItem key={u[1]} username={u[0]} onClick={() => handleClick(u)} />
-            ))}
-          </>
-        )}
+        <input
+          type="text"
+          placeholder="Search..."
+          className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
       </div>
 
+      {/* User List */}
+      <div className="flex-1 overflow-y-auto p-2">
+        {filteredUsers.length === 0 ? (
+          <p className="text-gray-500 text-center mt-4">No users found</p>
+        ) : (
+          filteredUsers.map((item) =>
+            view === 'recent' ? (
+              <UserItem
+                key={item.phone}
+                username={item.phone}
+                onClick={() => handleClick([item.phone, 'recent'])}
+              />
+            ) : (
+              <UserItem
+                key={item[1]}
+                username={item[0]}
+                onClick={() => handleClick(item)}
+              />
+            )
+          )
+        )}
+      </div>
     </div>
   );
 };

@@ -1,195 +1,58 @@
-import React, { useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import socket from '../utils/socket';
-import Sidebar from '../components/Sidebar';
-import ChatWindow from '../components/ChatWindow';
-import { useCall } from '../context/CallContext';
-import CallModal from '../components/CallModal';
-import Peer from 'simple-peer';
+import React, { useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
+import socket from "../utils/socket";
+import Sidebar from "../components/Sidebar";
+import ChatWindow from "../components/ChatWindow";
+import { useCall } from "../context/CallContext";
+import CallModal from "../components/CallModal";
 
 const ChatPage = () => {
-  const { user,token } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const { callState, setCallState, resetCallState } = useCall(); // 👈 Add resetCallState in context
+  const { callState, resetCallState } = useCall();
 
   useEffect(() => {
-    // console.log(user,token)
-    // if (!user) {
-    //   navigate('/login');
-    //   return;
-    // }
-    // // if()
+    if (!user) {
+      navigate("/login");
+      return;
+    }
 
     socket.auth = { userId: user._id };
     if (!socket.connected) socket.connect();
 
     const username = user.username || user.phone;
-    socket.emit('set-username', username);
-    socket.emit('user-online', { userId: user._id, phone: user.phone });
+    socket.emit("set-username", username);
+    socket.emit("user-online", { userId: user._id, phone: user.phone });
 
     const handleBeforeUnload = () => {
-      socket.emit('user-offline', user._id);
+      socket.emit("user-offline", user._id);
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      socket.emit('user-offline', user._id);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      socket.emit("user-offline", user._id);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
       socket.disconnect();
     };
-  }, [user]);
-
-  useEffect(() => {
-    socket.on('incoming-call', ({ from, offer, callType }) => {
-      // console.log(`📞 Incoming call from ${from} ${offer} (${callType})`);
-      console.log("recieved offer:", offer);
-      setCallState({
-        isReceivingCall: true,
-        from,
-        offer,
-        callType,
-        isCalling: false,
-        isInCall: false,
-        peer: null,
-        stream: null,
-      });
-    });
-
-    socket.on('call-accepted', ({ answer }) => {
-      if(!answer){
-        resetCallState();
-        if (callState.stream) {
-    callState.stream.getTracks().forEach((track) => {
-      try {
-        track.stop();
-      } catch (err) {
-        console.warn('Error stopping track:', err);
-      }
-    });
-  }
-      }
-      if (answer && callState.peer) {
-        callState.peer.signal(answer);
-      }
-    });
-
-    socket.on('ice-candidate', ({ candidate }) => {
-      console.log('Received ICE candidate:', candidate);
-      if (callState.peer) {
-        callState.peer.signal(candidate);
-      }
-    });
-
-    return () => {
-      socket.off('incoming-call');
-      socket.off('call-accepted');
-      socket.off('ice-candidate');
-    };
-  }, [callState.peer, setCallState]);
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    {
-      urls: 'turn:openrelay.metered.ca:80',
-      username: 'openrelayproject',
-      credential: 'openrelayproject'
-    }
-  ]
-};
-
-  const handleAccept = async () => {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: callState.callType === 'video',
-      audio: true,
-    });
-
-    const localVideo = document.getElementById('localVideo');
-    if (localVideo) localVideo.srcObject = stream;
-
-    const peer = new Peer({
-      initiator: false,
-      trickle: true,
-      stream,
-      config: ICE_SERVERS,
-    });
-    // peer.on('stream', (remoteStream) => {
-    // if (remoteVideoRef.current) {
-    //   remoteVideoRef.current.srcObject = remoteStream;
-    //   console.log("✅ Remote video element found and stream attached.");
-    // } else {
-    //   console.warn("❌ remoteVideoRef.current is null when stream received");
-    // }
-
-    // });
-    peer.on('signal', (data) => {
-      if (data.type === 'answer') {
-        socket.emit('answer-call', {
-          to: callState.from,
-          answer: data,
-        });
-      } else {
-        socket.emit('ice-candidate', {
-          to: callState.from,
-          candidate: data,
-        });
-      }
-    });
-
-    peer.on('stream', (remoteStream) => {
-      const remoteVideo = document.getElementById('remoteVideo');
-      if (remoteVideo) {
-        remoteVideo.srcObject = remoteStream;
-      }
-    });
-
-    // Removed duplicate ice-candidate listener from here ✅
-    setTimeout(() => {
-  peer.signal(callState.offer);
-}, 100);
-
-    // peer.signal(callState.offer);
-
-    setCallState((prev) => ({
-      ...prev,
-      isReceivingCall: false,
-      isInCall: true,
-      peer,
-      stream,
-    }));
-  } catch (err) {
-    alert('Unable to access camera/mic');
-    socket.emit('answer-call', { to: callState.from, answer: null });
-    console.error(err);
-    resetCallState();
-  }
-};
-
-  const handleReject = () => {
-  if (callState.stream) {
-    callState.stream.getTracks().forEach((track) => track.stop());
-  }
-
-  // Emit rejection to backend
-  socket.emit('answer-call', {
-    to: callState.from,
-    answer: null, // or use a flag like { rejected: true }
-  });
-
-  resetCallState();
-};
-
-
-  if (!user) return null;
+  }, [user, navigate]);
 
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <ChatWindow />
+    <div className="flex h-screen w-screen overflow-hidden">
+      {/* Sidebar */}
+      <div className="hidden md:flex w-70 bg-white border-r">
+        <Sidebar />
+      </div>
+
+      {/* Chat Window */}
+      <div className="flex flex-col flex-1 w-full">
+        <ChatWindow />
+      </div>
+
+      {/* Call Modal */}
       {callState.isReceivingCall && (
-        <CallModal onAccept={handleAccept} onReject={handleReject} />
+        <CallModal onAccept={resetCallState} onReject={resetCallState} />
       )}
     </div>
   );

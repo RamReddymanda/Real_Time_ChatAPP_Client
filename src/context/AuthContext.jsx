@@ -2,7 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser } from '../services/auth';
 // import { set } from 'mongoose';
-
+// import {setupUserKeys} from '../crypto/keyManager';
+import {publishMyPublicKey} from '../services/keymanager'
+// import api from '../services/api';
+// import { setupUserKeys } from '../crypto/e2eeSetup';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -13,10 +16,29 @@ export const AuthProvider = ({ children }) => {
 
   const [token, setToken] = useState(() => {
     const saved = localStorage.getItem('token');
-    return saved ? JSON.parse(saved) : null;
+    return saved ? saved : null;
   });
 
   const navigate = useNavigate();
+
+
+/**
+ * Ensure that a user's E2EE keys exist locally.
+ * If missing, generate and upload them.
+ *
+ * @param {string|number} userId
+ * @returns {Promise<void>}
+ */
+ async function ensureKeys(userId) {
+  if (!userId) throw new Error('userId required');
+
+  const localKeys = localStorage.getItem(`tn-identity-key`);
+
+  if (!localKeys) {
+    console.log(`No E2EE keys found for user ${userId} — generating new set...`);
+    await publishMyPublicKey(userId);
+  }
+}
 
   useEffect(() => {
     console.log("user",user)
@@ -32,16 +54,17 @@ export const AuthProvider = ({ children }) => {
       console.log("token",token)    
     if (token) {
 
-      localStorage.setItem('token', JSON.stringify(token));
+      localStorage.setItem('token', token);
     } else {
       localStorage.removeItem('token');
     }
   }, [token]);
 
-  const login = (data) => {
+  const login = async(data) => {
     console.log("hi",data.token)
     setUser(data.user);
     setToken(data.token);
+    await ensureKeys(data.user.phone)
     console.log(token)
     // navigate('/');
   };
@@ -49,6 +72,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setToken(null);
+    localStorage.remove('privateKey');
     navigate('/login');
   };
 
@@ -63,6 +87,8 @@ export const AuthProvider = ({ children }) => {
         if (res.data.user.phone === user?.phone) {
           setUser(res.data.user);
           setToken(res.data.token);
+          console.log('hbhjemdbznjs',res.data.user.phone)
+          ensureKeys(res.data.user.phone)
           navigate('/');
         } else {
           console.log("logout")
