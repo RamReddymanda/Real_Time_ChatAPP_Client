@@ -43,13 +43,10 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     console.log("user",user)
     if (user) {
-      
-      localStorage.setItem('user', JSON.stringify(user));
-      // localStorage.removeItem('tn-identity-key');
+    localStorage.setItem('phone', user?.phone || '');
+      localStorage.setItem('user', JSON.stringify(user)); 
     } else {
       localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      localStorage.removeItem('tn-identity-key');
     }
   }, [user]);
 
@@ -65,20 +62,24 @@ export const AuthProvider = ({ children }) => {
 
   const login = async(data) => {
     console.log("hi",data.token)
+    if (data.user.phone!== localStorage.getItem('phone')){
+      console.log("phone changed, clearing keys")
+      localStorage.removeItem('tn-identity-key');
+    }
     setUser(data.user);
     setToken(data.token);
+    
     await ensureKeys(data.user.phone)
     console.log(token)
-    // navigate('/');
   };
   
   const logout = () => {
-    setUser(null);
+    // setUser(null);
     setToken(null);
     //  localStorage.removeItem('user');
     //   localStorage.removeItem('token');
     console.log("logout called")
-    localStorage.removeItem('tn-identity-key');
+    // localStorage.removeItem('tn-identity-key');
     navigate('/login');
   };
 

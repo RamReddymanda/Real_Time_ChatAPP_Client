@@ -17,53 +17,58 @@ const MessageInput = () => {
       if (!selectedUser || selectedUser.length === 0) return;
 
       const remoteUserId = selectedUser[0];
+      const timestamp = new Date().toISOString();
+
+      // 1. Get recipient public key
       const recipientPubB64 = await getPublicKeyFor(remoteUserId);
-      console.log(recipientPubB64);
+      if (!recipientPubB64) throw new Error("Recipient public key not found");
+
+      // 2. Encrypt message
       const payload = await encryptMessageToRecipient(recipientPubB64, input);
 
+      // 3. Prepare local message for UI
+      const newMsg = {
+        sender: user.phone,
+        receiver: remoteUserId,
+        message: input,
+        timestamp,
+      };
+
+      // 4. Prepare encrypted packet for backend
       const messagePacket = {
-        to: selectedUser[0],
+        to: remoteUserId,
         from: user.phone,
-        timestamp: new Date().toISOString(),
+        timestamp,
         payload,
       };
 
+      // 5. Send encrypted message via socket
       socket.emit("private-message", messagePacket);
+
+      // 6. Stop typing
+      socket.emit("stopped-typing", remoteUserId);
+
+      // 7. Update local state
+      setMessages((prev) => [...prev, newMsg]);
+      setInput("");
     } catch (err) {
       console.error("Failed to send encrypted message:", err);
     }
   };
 
-  const sendMessage = () => {
-    if (!input.trim()) return;
-
-    const newMsg = {
-      sender: user.phone,
-      receiver: selectedUser[0],
-      message: input,
-      timestamp: new Date().toISOString(),
-    };
-
-    sendEncryptedMessage();
-    socket.emit("stopped-typing", selectedUser[0]);
-    setMessages((prev) => [...prev, newMsg]);
-    setInput("");
-  };
-
   const handleInputChange = (e) => {
-    setInput(e.target.value);
+    const value = e.target.value;
+    setInput(value);
 
     if (selectedUser && selectedUser[0]) {
       socket.emit("typing", { to: selectedUser[0] });
-    }
 
-    if (typingTimeout.current) clearTimeout(typingTimeout.current);
+      if (typingTimeout.current) clearTimeout(typingTimeout.current);
 
-    typingTimeout.current = setTimeout(() => {
-      if (selectedUser && selectedUser[0]) {
+      typingTimeout.current = setTimeout(() => {
         socket.emit("stopped-typing", { to: selectedUser[0] });
-      }
-    }, 1500);
+      }, 1500);
+    }
   };
 
   return (
@@ -76,7 +81,7 @@ const MessageInput = () => {
         className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
         value={input}
         onChange={handleInputChange}
-        onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+        onKeyDown={(e) => e.key === "Enter" && sendEncryptedMessage()}
         placeholder="Type a message..."
       />
 
@@ -85,7 +90,7 @@ const MessageInput = () => {
 
       {/* Send */}
       <button
-        onClick={sendMessage}
+        onClick={sendEncryptedMessage}
         className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-full transition-all"
       >
         ➤
