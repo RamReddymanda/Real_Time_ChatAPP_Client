@@ -38,9 +38,11 @@ const MessageList = () => {
     }
   };
 
-  const filteredMessages = messages.filter(
-    (msg) => msg.receiver === selectedId || msg.sender === selectedId
-  );
+const filteredMessages = messages.filter(
+  (msg) =>
+    (msg.receiver === selectedId && msg.sender===user.phone ) ||
+    (msg.sender === selectedId && msg.receiver===user.phone)
+);
 
   let lastDate = null;
 

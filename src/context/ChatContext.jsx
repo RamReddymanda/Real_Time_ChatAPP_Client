@@ -25,6 +25,7 @@ export const ChatProvider = ({ children }) => {
       const text=await decryptMessageFromSender(payload)
       const msg={
         sender:from,
+        receiver:user.phone,
         message:text,
         timestamp
       }
